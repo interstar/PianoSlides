@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{{ title or "MIDI-Aware Music Theory Presentation" }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Reveal.js core CSS & theme -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4/dist/theme/black.css" id="theme">
+
+  <style>
+    :root {
+      --dock-height: 240px;  /* adjusted dynamically */
+    }
+
+    .reveal { 
+      padding-bottom: calc(var(--dock-height) + 20px);
+      font-size: 1.2em; /* Larger base size */
+    }
+    
+    .reveal h1 { font-size: 5em; }
+    .reveal h2 { font-size: 3.5em; }
+    .reveal h3 { font-size: 2.5em; }
+    .reveal p { font-size: 1.6em; }
+    .reveal li { font-size: 1.5em; }
+    
+    /* Left-aligned paragraph class */
+    .reveal p.left-align {
+      text-align: left !important;
+      font-size: 1.6em; /* Same size as regular paragraphs */
+    }
+    
+    /* Also handle divs with left-align class */
+    .reveal .left-align {
+      text-align: left !important;
+      font-size: 1.6em;
+      font-family: 'Courier New', 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    }
+    
+    /* Move slide content higher up */
+    .reveal .slides section {
+      text-align: center;
+      padding-top: 5vh; /* Reduce top padding */
+    }
+    
+    /* Override Reveal.js centering to account for keyboard */
+    .reveal .slides {
+      top: 0 !important;
+      transform: translateX(-50%) !important;
+      margin-top: 0 !important;
+    }
+    
+    /* Center content in available space above keyboard - use calc to offset from Reveal's positioning */
+    .reveal .slides section {
+      transform: translateY(-20vh) !important;
+    }
+
+    #keyboard-dock {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      height: var(--dock-height);
+      background: linear-gradient(180deg, #111 0%, #000 100%);
+      border-top: 1px solid #333;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      z-index: 9999;
+      user-select: none;
+    }
+    #kbd-topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      padding: 8px 12px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      color: #ddd;
+    }
+    #kbd-topbar .pill {
+      background: #1b1b1b; border: 1px solid #333; border-radius: 10px;
+      padding: 6px 10px; display: inline-flex; align-items: center; gap: 8px;
+    }
+    #kbd-status { opacity: 0.85; font-size: 12px; }
+
+    #keyboard { position: relative; overflow: hidden; padding: 10px 12px 12px; }
+    .white-keys {
+      position: absolute; left: 12px; right: 12px; bottom: 12px; top: 26px;
+      display: flex; gap: 0; height: calc(100% - 10px);
+    }
+    .white-key {
+      flex: 1 1 auto;
+      background: #f7f7f7;
+      border: 1px solid #b9b9b9;
+      border-bottom-width: 8px;
+      border-radius: 0 0 6px 6px;
+      position: relative;
+      box-sizing: border-box;
+    }
+    .white-key.active { background: #ffd966; border-color: #e1b400; }
+    .black-keys {
+      position: absolute; left: 12px; right: 12px; top: 26px; height: 58%;
+      pointer-events: none;
+    }
+    .black-key {
+      position: absolute;
+      height: 100%;
+      background: #111;
+      border: 1px solid #333;
+      border-bottom-width: 8px;
+      border-radius: 0 0 6px 6px;
+      pointer-events: auto;
+      z-index: 2;
+    }
+    .black-key.active { background: #ffb000; border-color: #a96a00; }
+    .white-key .label {
+      position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+      font-size: 11px; color: #666;
+    }
+    select, input[type="range"] {
+      background: #0e0e0e; color: #eee;
+      border: 1px solid #333; border-radius: 6px; padding: 4px 6px;
+    }
+    input[type="range"] { height: 6px; vertical-align: middle; }
+
+    /* Audio button styles */
+    .audio-button {
+      display: inline-block;
+      background: #2a2a2a;
+      border: 2px solid #444;
+      border-radius: 8px;
+      padding: 12px 20px;
+      margin: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 1.1em;
+      color: #fff;
+      text-decoration: none;
+    }
+    .audio-button:hover {
+      background: #3a3a3a;
+      border-color: #666;
+      transform: translateY(-2px);
+    }
+    .audio-button.playing {
+      background: #4a4a4a;
+      border-color: #888;
+    }
+    .audio-button::before {
+      content: "▶ ";
+      margin-right: 8px;
+    }
+    .audio-button.playing::before {
+      content: "⏸ ";
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Slides -->
+  <div class="reveal">
+    <div class="slides">
+      {% for slide in slides %}
+      <section>
+        {{ slide.content | safe }}
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Persistent Keyboard Dock -->
+  <div id="keyboard-dock">
+    <div id="kbd-topbar">
+      <div class="pill">
+        <label for="midiIn">MIDI In:</label>
+        <select id="midiIn"></select>
+      </div>
+      <div class="pill">
+        <label for="volume">Volume</label>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.6" />
+      </div>
+      <div class="pill">
+        <label for="octave">Octave</label>
+        <input id="octave" type="range" min="-2" max="2" step="1" value="0" />
+        <span id="octaveLabel">0</span>
+      </div>
+      <div class="pill">
+        <label for="scale">Size</label>
+        <input id="scale" type="range" min="0.8" max="1.8" step="0.05" value="1" />
+        <span id="scaleLabel">100%</span>
+      </div>
+      <div id="kbd-status">MIDI: <span id="midiStatus">initializing…</span></div>
+      <div class="pill">
+        <button id="startAudio" style="background: #2a2a2a; color: #fff; border: 1px solid #333; border-radius: 6px; padding: 4px 8px; cursor: pointer;">Start Audio</button>
+      </div>
+      <div class="pill">
+        <button id="testAudio" style="background: #2a2a2a; color: #fff; border: 1px solid #333; border-radius: 6px; padding: 4px 8px; cursor: pointer;">Test Audio</button>
+      </div>
+    </div>
+    <div id="keyboard">
+      <div class="white-keys" id="whiteKeys"></div>
+      <div class="black-keys" id="blackKeys"></div>
+    </div>
+  </div>
+
+  <!-- Reveal.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/reveal.js@4/dist/reveal.js"></script>
+
+  <!-- Keyboard + MIDI -->
+  <script defer>
+  document.addEventListener('DOMContentLoaded', () => {
+    Reveal.initialize({ hash: true, slideNumber: true, transition: 'slide' });
+
+    /* config */
+    const BASE_OCTAVE=3, NUM_OCTAVES=3, START_MIDI=12*BASE_OCTAVE, NOTE_RANGE=12*NUM_OCTAVES;
+    const midiToFreq=n=>440*Math.pow(2,(n-69)/12);
+    const NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+    const isBlack=s=>[1,3,6,8,10].includes(s);
+
+    /* synth */
+    const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const master=audioCtx.createGain(); master.gain.value=0.6; master.connect(audioCtx.destination);
+    const active=new Map();
+    
+    // Ensure audio context is resumed
+    async function ensureAudioContext() {
+      if (audioCtx.state === 'suspended') {
+        console.log('Resuming audio context...');
+        await audioCtx.resume();
+        console.log('Audio context state:', audioCtx.state);
+      }
+    }
+    function on(midi,v=100){
+      if(active.has(midi)) off(midi);
+      const t=audioCtx.currentTime,f=midiToFreq(midi),vel=Math.max(0.05,v/127);
+      const o1=audioCtx.createOscillator(),o2=audioCtx.createOscillator();
+      o1.type='triangle'; o2.type='square'; o1.frequency.value=f; o2.frequency.value=f*1.005;
+      const filt=audioCtx.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=1800+vel*4000;
+      const g=audioCtx.createGain(); const a=0.002,d=0.2,s=0.12;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vel,t+a);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0005,s*vel),t+a+d);
+      o1.connect(filt); o2.connect(filt); filt.connect(g); g.connect(master);
+      o1.start(t); o2.start(t); active.set(midi,{o1,o2,filt,g});
+    }
+    function off(midi){
+      const v=active.get(midi); if(!v)return;
+      const t=audioCtx.currentTime,r=0.12;
+      v.g.gain.setTargetAtTime(0.0001,t,r/3);
+      v.o1.stop(t+r+0.05); v.o2.stop(t+r+0.05);
+      active.delete(midi);
+    }
+
+    /* UI */
+    const whiteKeys=document.getElementById('whiteKeys'), blackKeys=document.getElementById('blackKeys');
+    const midiStatus=document.getElementById('midiStatus'), vol=document.getElementById('volume');
+    const midiSel=document.getElementById('midiIn'), oct=document.getElementById('octave');
+    const octLbl=document.getElementById('octaveLabel'), scl=document.getElementById('scale'), sclLbl=document.getElementById('scaleLabel');
+    const keyEls=new Map(), whiteCenters=new Map(); let whiteW=24;
+
+    function render(){
+      whiteKeys.innerHTML=''; blackKeys.innerHTML=''; keyEls.clear(); whiteCenters.clear();
+      let nWhite=0; for(let i=0;i<NOTE_RANGE;i++) if(!isBlack(i%12)) nWhite++;
+      const contW=whiteKeys.clientWidth||1024; whiteW=Math.max(18,Math.floor(contW/nWhite));
+      let idx=0;
+      for(let i=0;i<NOTE_RANGE;i++){
+        const m=START_MIDI+i,s=m%12; if(isBlack(s)) continue;
+        const w=document.createElement('div'); w.className='white-key'; w.dataset.midi=m;
+        if(s===0){const lab=document.createElement('div'); lab.className='label'; lab.textContent=NAMES[s]+(Math.floor(m/12)-1); w.appendChild(lab);}
+        whiteKeys.appendChild(w); keyEls.set(m,w);
+        const left=12+idx*whiteW,center=left+whiteW/2; whiteCenters.set(m,center); idx++;
+      }
+      for(let i=0;i<NOTE_RANGE;i++){
+        const m=START_MIDI+i,s=m%12; if(!isBlack(s)) continue;
+        const blk=document.createElement('div'); blk.className='black-key'; blk.dataset.midi=m;
+        const bw=whiteW*0.52;
+        // Position black keys offset towards the left white key (more realistic piano positioning)
+        const prev=findWhite(m,-1),next=findWhite(m,1),pc=whiteCenters.get(prev),nc=whiteCenters.get(next)||pc+whiteW;
+        const gap=nc-pc;
+        const offset=gap*0.35; // 35% from left edge of gap (not centered)
+        const leftPos=pc+offset-bw/2;
+        blk.style.left=leftPos+'px';
+        blk.style.width=bw+'px';
+        blackKeys.appendChild(blk); keyEls.set(m,blk);
+      }
+      function down(e){
+        const el=e.target.closest('.white-key,.black-key'); if(!el)return; e.preventDefault(); audioCtx.resume();
+        const base=Number(el.dataset.midi),m=base+12*Number(oct.value); setAct(el,true); on(m,110);
+        let cur=el,cm=m;
+        function mv(ev){const over=document.elementFromPoint(ev.clientX||ev.touches[0].clientX,ev.clientY||ev.touches[0].clientY)?.closest('.white-key,.black-key');
+          if(over&&over!==cur){setAct(cur,false); off(cm); cur=over; cm=Number(cur.dataset.midi)+12*Number(oct.value); setAct(cur,true); on(cm,110);}}
+        function up(){setAct(cur,false); off(cm); window.removeEventListener('mousemove',mv); window.removeEventListener('mouseup',up);}
+        window.addEventListener('mousemove',mv); window.addEventListener('mouseup',up,{once:true});
+      }
+      whiteKeys.addEventListener('mousedown',down); blackKeys.addEventListener('mousedown',down);
+    }
+    function findWhite(m,dir){let k=m+dir; while(k>=START_MIDI&&k<START_MIDI+NOTE_RANGE){if(!isBlack(k%12))return k;k+=dir;}return null;}
+    function setAct(el,on){if(el)el.classList.toggle('active',on);}
+    function setActForKey(midiNote, on){
+      // Find the key element for this MIDI note
+      const keyEl = keyEls.get(midiNote);
+      if (keyEl) {
+        setAct(keyEl, on);
+      } else {
+        console.log('No key element found for MIDI note:', midiNote);
+      }
+    }
+
+    /* MIDI */
+    let midiAcc=null,inpt=null;
+    async function initMIDI(){if(!navigator.requestMIDIAccess){midiStatus.textContent='not supported';return;}
+      midiAcc=await navigator.requestMIDIAccess(); midiAcc.onstatechange=populate; populate();}
+    function populate(){
+      console.log('Populating MIDI devices...');
+      midiSel.innerHTML=''; 
+      const ins=[...midiAcc.inputs.values()]; 
+      console.log('Found MIDI inputs:', ins.map(i => ({id: i.id, name: i.name, state: i.state})));
+      if(!ins.length){midiStatus.textContent='no devices';return;}
+      ins.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;midiSel.appendChild(o);});
+      attach(ins[0].id);
+    }
+    function attach(id){
+      console.log('Attaching to MIDI device:', id);
+      if(inpt) {
+        inpt.onmidimessage=null; 
+        // Remove any existing event listeners
+        inpt.removeEventListener('midimessage', msg);
+      }
+      
+      inpt=midiAcc.inputs.get(id); 
+      if(inpt){
+        console.log('Successfully attached to:', inpt.name, 'State:', inpt.state);
+        
+        // Set up both message handlers for maximum compatibility
+        inpt.onmidimessage=msg;
+        inpt.addEventListener('midimessage', msg);
+        
+        midiStatus.textContent='connected to ' + inpt.name;
+        
+        // Test if the message handler is properly set
+        console.log('Message handler set:', typeof inpt.onmidimessage);
+        
+        // Ensure audio context is ready
+        ensureAudioContext();
+      } else {
+        console.log('Failed to attach to device:', id);
+        midiStatus.textContent='connection failed';
+      }
+    }
+    function msg(ev){
+      const data = ev.data;
+      console.log('MIDI message received:', data);
+      
+      // Filter out MIDI clock messages (248) and other system messages
+      if (data[0] >= 240) {
+        console.log('System message (ignored):', data[0]);
+        return;
+      }
+      
+      const st = data[0], d1 = data[1], d2 = data[2];
+      const cmd = st & 0xf0;
+      console.log('Parsed - Status:', st, 'Data1:', d1, 'Data2:', d2, 'Command:', cmd);
+      
+      if(cmd === 0x90 && d2 > 0){
+        console.log('Note ON:', d1, 'Velocity:', d2);
+        // Resume audio context if needed
+        ensureAudioContext();
+        on(d1, d2);
+        // Add visual feedback
+        setActForKey(d1, true);
+      } else if(cmd === 0x80 || (cmd === 0x90 && d2 === 0)){
+        console.log('Note OFF:', d1);
+        off(d1);
+        // Remove visual feedback
+        setActForKey(d1, false);
+      } else {
+        console.log('Unhandled MIDI command:', cmd);
+      }
+    }
+
+    /* controls */
+    vol.oninput=e=>master.gain.value=+e.target.value;
+    oct.oninput=e=>octLbl.textContent=e.target.value;
+    midiSel.onchange=e=>attach(e.target.value);
+    document.getElementById('startAudio').onclick=async ()=>{
+      console.log('Starting audio context...');
+      await ensureAudioContext();
+      console.log('Audio context ready!');
+    };
+    document.getElementById('testAudio').onclick=()=>{
+      console.log('Testing audio - playing middle C');
+      on(60, 100); // Middle C
+      setTimeout(() => off(60), 1000);
+    };
+    scl.oninput=e=>{const base=240,h=Math.round(base*+e.target.value); document.documentElement.style.setProperty('--dock-height',h+'px');
+      document.querySelector('.reveal').style.paddingBottom=(h+20)+'px'; sclLbl.textContent=Math.round(+e.target.value*100)+'%'; render();};
+
+    /* Audio button functionality */
+    function initAudioButtons() {
+      document.querySelectorAll('.audio-button').forEach(button => {
+        const audio = new Audio(button.dataset.src);
+        let isPlaying = false;
+        
+        button.addEventListener('click', () => {
+          if (isPlaying) {
+            audio.pause();
+            audio.currentTime = 0;
+            button.classList.remove('playing');
+            isPlaying = false;
+          } else {
+            audio.play();
+            button.classList.add('playing');
+            isPlaying = true;
+          }
+        });
+        
+        audio.addEventListener('ended', () => {
+          button.classList.remove('playing');
+          isPlaying = false;
+        });
+      });
+    }
+
+    render(); initMIDI(); scl.dispatchEvent(new Event('input'));
+    // Remove the old pointerdown listener since we have better audio context management now
+    
+    // Re-render keyboard when container size changes (including browser zoom)
+    if (window.ResizeObserver) {
+      const resizeObserver = new ResizeObserver(() => {
+        // Debounce the render to avoid excessive calls
+        clearTimeout(resizeObserver.timeout);
+        resizeObserver.timeout = setTimeout(render, 100);
+      });
+      resizeObserver.observe(whiteKeys);
+    }
+    
+    // Initialize audio buttons after a short delay to ensure DOM is ready
+    setTimeout(initAudioButtons, 100);
+  });
+  </script>
+</body>
+</html>
